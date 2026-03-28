@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#0f766e">
+  <title>旅行おすすめアプリ</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+    :root {
+      --primary: #0f766e;
+      --primary-light: #14b8a6;
+      --bg: #f0fdf4;
+      --card: #ffffff;
+      --text: #134e4a;
+      --subtext: #5eead4;
+      --border: #ccfbf1;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ===== HEADER ===== */
+    header {
+      background: var(--primary);
+      color: white;
+      padding: 18px 16px 14px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 2px 8px rgba(15,118,110,0.4);
+    }
+    header h1 { font-size: 1.25rem; font-weight: 700; }
+    header p  { font-size: 0.78rem; opacity: 0.8; margin-top: 2px; }
+
+    /* ===== TABS ===== */
+    .tabs {
+      display: flex;
+      background: white;
+      border-bottom: 2px solid var(--border);
+      position: sticky;
+      top: 62px;
+      z-index: 99;
+    }
+    .tab {
+      flex: 1;
+      padding: 11px 4px;
+      text-align: center;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #94a3b8;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
+      transition: all 0.15s;
+    }
+    .tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+    /* ===== VIEWS ===== */
+    .view { display: none; padding: 16px; padding-bottom: 80px; }
+    .view.active { display: block; }
+
+    /* ===== SEARCH VIEW ===== */
+    .search-box {
+      background: white;
+      border-radius: 14px;
+      padding: 16px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+      margin-bottom: 16px;
+    }
+    .search-box label {
+      display: block;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--primary);
+      margin-bottom: 8px;
+    }
+    .pref-select {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      font-size: 1rem;
+      background: #f8fafc;
+      color: var(--text);
+      outline: none;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%230f766e' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 14px center;
+      padding-right: 36px;
+    }
+    .pref-select:focus { border-color: var(--primary); }
+
+    .search-btn {
+      width: 100%;
+      padding: 14px;
+      margin-top: 12px;
+      background: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s;
+    }
+    .search-btn:active { background: #115e59; transform: scale(0.98); }
+    .search-btn:disabled { background: #94a3b8; cursor: not-allowed; transform: none; }
+
+    /* ===== LOADING ===== */
+    .loading {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--primary);
+    }
+    .spinner {
+      width: 40px; height: 40px;
+      border: 3px solid var(--border);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 12px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ===== RESULT SECTION ===== */
+    .result-header {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--primary);
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid var(--border);
+    }
+
+    .category-block { margin-bottom: 20px; }
+    .category-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 10px;
+    }
+    .category-icon {
+      width: 28px; height: 28px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.9rem;
+    }
+
+    .rec-card {
+      background: white;
+      border-radius: 12px;
+      padding: 13px 14px;
+      margin-bottom: 8px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.07);
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      transition: box-shadow 0.15s;
+    }
+    .rec-card.visited {
+      background: #f0fdf4;
+      border: 1.5px solid #86efac;
+    }
+
+    .rec-info { flex: 1; min-width: 0; }
+    .rec-name {
+      font-size: 0.92rem;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 3px;
+    }
+    .rec-desc {
+      font-size: 0.78rem;
+      color: #64748b;
+      line-height: 1.4;
+    }
+
+    .visit-btn {
+      flex-shrink: 0;
+      padding: 6px 10px;
+      border-radius: 8px;
+      border: 1.5px solid #cbd5e1;
+      background: white;
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: #64748b;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s;
+    }
+    .visit-btn.visited {
+      background: #16a34a;
+      border-color: #16a34a;
+      color: white;
+    }
+
+    /* ===== VISITED VIEW ===== */
+    .visited-empty {
+      text-align: center;
+      padding: 60px 20px;
+      color: #94a3b8;
+    }
+    .visited-empty .icon { font-size: 3rem; margin-bottom: 12px; }
+
+    .visited-pref-group { margin-bottom: 20px; }
+    .visited-pref-title {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--primary);
+      background: var(--border);
+      padding: 6px 12px;
+      border-radius: 8px;
+      margin-bottom: 8px;
+    }
+    .visited-item {
+      background: white;
+      border-radius: 10px;
+      padding: 11px 13px;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+    .visited-item-info { flex: 1; }
+    .visited-item-name { font-size: 0.88rem; font-weight: 600; }
+    .visited-item-meta { font-size: 0.72rem; color: #94a3b8; margin-top: 2px; }
+    .unvisit-btn {
+      background: none;
+      border: none;
+      color: #cbd5e1;
+      font-size: 1rem;
+      cursor: pointer;
+      padding: 4px;
+    }
+    .unvisit-btn:active { color: #ef4444; }
+
+    /* ===== SETTINGS VIEW ===== */
+    .settings-card {
+      background: white;
+      border-radius: 14px;
+      padding: 16px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+      margin-bottom: 16px;
+    }
+    .settings-card h3 {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: var(--primary);
+      margin-bottom: 10px;
+    }
+    .settings-card p {
+      font-size: 0.8rem;
+      color: #64748b;
+      line-height: 1.5;
+      margin-bottom: 10px;
+    }
+    .api-input {
+      width: 100%;
+      padding: 11px 13px;
+      border: 1.5px solid var(--border);
+      border-radius: 9px;
+      font-size: 0.88rem;
+      font-family: monospace;
+      outline: none;
+      background: #f8fafc;
+      color: var(--text);
+    }
+    .api-input:focus { border-color: var(--primary); }
+    .save-btn {
+      width: 100%;
+      padding: 12px;
+      margin-top: 10px;
+      background: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 9px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .save-btn:active { background: #115e59; }
+    .api-status {
+      font-size: 0.78rem;
+      margin-top: 8px;
+      text-align: center;
+    }
+    .api-status.ok  { color: #16a34a; }
+    .api-status.err { color: #dc2626; }
+
+    /* ===== API KEY BANNER ===== */
+    .api-banner {
+      background: #fef9c3;
+      border: 1.5px solid #fde047;
+      border-radius: 10px;
+      padding: 12px 14px;
+      font-size: 0.82rem;
+      color: #854d0e;
+      margin-bottom: 14px;
+      line-height: 1.5;
+    }
+
+    /* ===== ERROR ===== */
+    .error-box {
+      background: #fee2e2;
+      border-radius: 10px;
+      padding: 14px;
+      color: #dc2626;
+      font-size: 0.85rem;
+      line-height: 1.5;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>旅行おすすめアプリ</h1>
+  <p>都道府県を選んでおすすめスポットを探そう</p>
+</header>
+
+<div class="tabs">
+  <div class="tab active" data-tab="search">検索</div>
+  <div class="tab" data-tab="visited">行った記録</div>
+  <div class="tab" data-tab="settings">設定</div>
+</div>
+
+<!-- ===== SEARCH TAB ===== -->
+<div class="view active" id="view-search">
+  <div id="apiBanner" class="api-banner" style="display:none">
+    ⚠️ APIキーが未設定です。「設定」タブでClaude APIキーを入力してください。
+  </div>
+
+  <div class="search-box">
+    <label>都道府県を選択</label>
+    <select class="pref-select" id="prefSelect">
+      <option value="">-- 選択してください --</option>
+      <option>北海道</option><option>青森県</option><option>岩手県</option>
+      <option>宮城県</option><option>秋田県</option><option>山形県</option>
+      <option>福島県</option><option>茨城県</option><option>栃木県</option>
+      <option>群馬県</option><option>埼玉県</option><option>千葉県</option>
+      <option>東京都</option><option>神奈川県</option><option>新潟県</option>
+      <option>富山県</option><option>石川県</option><option>福井県</option>
+      <option>山梨県</option><option>長野県</option><option>岐阜県</option>
+      <option>静岡県</option><option>愛知県</option><option>三重県</option>
+      <option>滋賀県</option><option>京都府</option><option>大阪府</option>
+      <option>兵庫県</option><option>奈良県</option><option>和歌山県</option>
+      <option>鳥取県</option><option>島根県</option><option>岡山県</option>
+      <option>広島県</option><option>山口県</option><option>徳島県</option>
+      <option>香川県</option><option>愛媛県</option><option>高知県</option>
+      <option>福岡県</option><option>佐賀県</option><option>長崎県</option>
+      <option>熊本県</option><option>大分県</option><option>宮崎県</option>
+      <option>鹿児島県</option><option>沖縄県</option>
+    </select>
+    <button class="search-btn" id="searchBtn">おすすめを探す</button>
+  </div>
+
+  <div id="resultArea"></div>
+</div>
+
+<!-- ===== VISITED TAB ===== -->
+<div class="view" id="view-visited">
+  <div id="visitedList"></div>
+</div>
+
+<!-- ===== SETTINGS TAB ===== -->
+<div class="view" id="view-settings">
+  <div class="settings-card">
+    <h3>Claude APIキー設定</h3>
+    <p>
+      おすすめ情報の取得にClaude APIを使用します。
+      Anthropicのコンソール（console.anthropic.com）でAPIキーを発行し、以下に入力してください。
+      キーはこの端末のみに保存されます。
+    </p>
+    <input class="api-input" id="apiKeyInput" type="password" placeholder="sk-ant-..." autocomplete="off">
+    <button class="save-btn" id="saveApiKey">保存</button>
+    <div class="api-status" id="apiStatus"></div>
+  </div>
+
+  <div class="settings-card">
+    <h3>データ管理</h3>
+    <p>訪問記録をすべて削除します。</p>
+    <button class="save-btn" id="clearVisited" style="background:#ef4444">訪問記録をリセット</button>
+  </div>
+</div>
+
+<script>
+  // ===== STATE =====
+  const VISITED_KEY = 'travel-visited-v1';
+  const APIKEY_KEY  = 'travel-apikey-v1';
+
+  let visited = JSON.parse(localStorage.getItem(VISITED_KEY) || '{}');
+  // visited = { "東京都": [ {id, name, desc, category, date}, ... ] }
+
+  function saveVisited() {
+    localStorage.setItem(VISITED_KEY, JSON.stringify(visited));
+  }
+
+  function getApiKey() {
+    return localStorage.getItem(APIKEY_KEY) || '';
+  }
+
+  // ===== TABS =====
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+      tab.classList.add('active');
+      document.getElementById('view-' + tab.dataset.tab).classList.add('active');
+      if (tab.dataset.tab === 'visited') renderVisited();
+    });
+  });
+
+  // ===== SETTINGS =====
+  document.getElementById('apiKeyInput').value = getApiKey();
+
+  document.getElementById('saveApiKey').addEventListener('click', () => {
+    const key = document.getElementById('apiKeyInput').value.trim();
+    localStorage.setItem(APIKEY_KEY, key);
+    const st = document.getElementById('apiStatus');
+    if (key) {
+      st.textContent = '✓ 保存しました';
+      st.className = 'api-status ok';
+    } else {
+      st.textContent = 'APIキーが空です';
+      st.className = 'api-status err';
+    }
+    updateBanner();
+  });
+
+  document.getElementById('clearVisited').addEventListener('click', () => {
+    if (confirm('訪問記録をすべて削除しますか？')) {
+      visited = {};
+      saveVisited();
+      alert('削除しました');
+    }
+  });
+
+  // ===== BANNER =====
+  function updateBanner() {
+    document.getElementById('apiBanner').style.display = getApiKey() ? 'none' : 'block';
+  }
+  updateBanner();
+
+  // ===== SEARCH =====
+  const CATEGORIES = [
+    { key: 'ryokan',   label: '旅館・宿泊',   icon: '🏯', color: '#fef3c7' },
+    { key: 'food',     label: '食事・グルメ',  icon: '🍜', color: '#fce7f3' },
+    { key: 'ent',      label: 'エンタメ',      icon: '🎭', color: '#ede9fe' },
+    { key: 'activity', label: 'アクティビティ',icon: '🏔️', color: '#dcfce7' },
+  ];
+
+  document.getElementById('searchBtn').addEventListener('click', async () => {
+    const pref = document.getElementById('prefSelect').value;
+    if (!pref) { alert('都道府県を選択してください'); return; }
+
+    const apiKey = getApiKey();
+    if (!apiKey) {
+      alert('設定タブでAPIキーを入力してください');
+      return;
+    }
+
+    const btn = document.getElementById('searchBtn');
+    btn.disabled = true;
+    btn.textContent = '取得中...';
+
+    const area = document.getElementById('resultArea');
+    area.innerHTML = `<div class="loading"><div class="spinner"></div><p>${pref}の情報を取得中...</p></div>`;
+
+    try {
+      const data = await fetchRecommendations(pref, apiKey);
+      renderResults(pref, data);
+    } catch(e) {
+      area.innerHTML = `<div class="error-box">エラーが発生しました：${escHtml(e.message)}</div>`;
+    }
+
+    btn.disabled = false;
+    btn.textContent = 'おすすめを探す';
+  });
+
+  async function fetchRecommendations(pref, apiKey) {
+    const prompt = `${pref}の旅行おすすめ情報をJSON形式で返してください。
+各カテゴリ3件ずつ、以下の形式で返してください。説明文は日本語で30文字以内にしてください。
+
+{
+  "ryokan": [{"name": "施設名", "desc": "特徴の説明"}, ...],
+  "food":   [{"name": "店名・料理名", "desc": "特徴の説明"}, ...],
+  "ent":    [{"name": "スポット名", "desc": "特徴の説明"}, ...],
+  "activity":[{"name": "アクティビティ名", "desc": "特徴の説明"}, ...]
+}
+
+JSONのみ返してください。`;
+
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+        'anthropic-dangerous-direct-browser-calls': 'true',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 1024,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error?.message || `HTTPエラー ${res.status}`);
+    }
+
+    const json = await res.json();
+    const text = json.content[0].text.trim();
+    const match = text.match(/\{[\s\S]*\}/);
+    if (!match) throw new Error('レスポンスの解析に失敗しました');
+    return JSON.parse(match[0]);
+  }
+
+  function renderResults(pref, data) {
+    const area = document.getElementById('resultArea');
+
+    const html = `
+      <div class="result-header">📍 ${escHtml(pref)}のおすすめスポット</div>
+      ${CATEGORIES.map(cat => {
+        const items = data[cat.key] || [];
+        return `
+          <div class="category-block">
+            <div class="category-title">
+              <div class="category-icon" style="background:${cat.color}">${cat.icon}</div>
+              ${cat.label}
+            </div>
+            ${items.map(item => {
+              const id = `${pref}__${cat.key}__${item.name}`;
+              const isVisited = isVisitedItem(pref, id);
+              return `
+                <div class="rec-card ${isVisited ? 'visited' : ''}" id="card-${btoa(encodeURIComponent(id))}">
+                  <div class="rec-info">
+                    <div class="rec-name">${escHtml(item.name)}</div>
+                    <div class="rec-desc">${escHtml(item.desc)}</div>
+                  </div>
+                  <button class="visit-btn ${isVisited ? 'visited' : ''}"
+                    onclick="toggleVisit(${JSON.stringify(pref)}, ${JSON.stringify(id)}, ${JSON.stringify(item.name)}, ${JSON.stringify(item.desc)}, ${JSON.stringify(cat.label)}, this)">
+                    ${isVisited ? '✓ 行った' : '行った'}
+                  </button>
+                </div>`;
+            }).join('')}
+          </div>`;
+      }).join('')}`;
+
+    area.innerHTML = html;
+  }
+
+  // ===== VISITED LOGIC =====
+  function isVisitedItem(pref, id) {
+    return !!(visited[pref] && visited[pref].some(v => v.id === id));
+  }
+
+  function toggleVisit(pref, id, name, desc, category, btn) {
+    if (!visited[pref]) visited[pref] = [];
+    const idx = visited[pref].findIndex(v => v.id === id);
+    const card = document.getElementById('card-' + btoa(encodeURIComponent(id)));
+
+    if (idx >= 0) {
+      visited[pref].splice(idx, 1);
+      if (visited[pref].length === 0) delete visited[pref];
+      btn.textContent = '行った';
+      btn.classList.remove('visited');
+      card && card.classList.remove('visited');
+    } else {
+      visited[pref].push({
+        id, name, desc, category,
+        date: new Date().toLocaleDateString('ja-JP')
+      });
+      btn.textContent = '✓ 行った';
+      btn.classList.add('visited');
+      card && card.classList.add('visited');
+    }
+    saveVisited();
+  }
+
+  // ===== VISITED VIEW =====
+  function renderVisited() {
+    const el = document.getElementById('visitedList');
+    const prefs = Object.keys(visited).filter(p => visited[p].length > 0);
+
+    if (prefs.length === 0) {
+      el.innerHTML = `
+        <div class="visited-empty">
+          <div class="icon">🗺️</div>
+          <p>まだ記録がありません<br>検索して「行った」を押してみましょう</p>
+        </div>`;
+      return;
+    }
+
+    el.innerHTML = prefs.map(pref => `
+      <div class="visited-pref-group">
+        <div class="visited-pref-title">📍 ${escHtml(pref)}（${visited[pref].length}件）</div>
+        ${visited[pref].map(v => `
+          <div class="visited-item">
+            <div class="visited-item-info">
+              <div class="visited-item-name">${escHtml(v.name)}</div>
+              <div class="visited-item-meta">${escHtml(v.category)} ・ ${escHtml(v.date)}</div>
+            </div>
+            <button class="unvisit-btn" onclick="removeVisit(${JSON.stringify(pref)}, ${JSON.stringify(v.id)})">✕</button>
+          </div>`).join('')}
+      </div>`).join('');
+  }
+
+  function removeVisit(pref, id) {
+    if (!visited[pref]) return;
+    visited[pref] = visited[pref].filter(v => v.id !== id);
+    if (visited[pref].length === 0) delete visited[pref];
+    saveVisited();
+    renderVisited();
+  }
+
+  function escHtml(s) {
+    return String(s)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+</script>
+</body>
+</html>
