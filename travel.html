@@ -288,9 +288,9 @@
 
 <div class="view" id="view-settings">
   <div class="settings-wrapper">
-    <div class="settings-card">
+    <div class="settings-card" id="apiKeyCard">
       <h3>Claude APIキー</h3>
-      <p>おすすめ情報の取得にClaude APIを使用します。Anthropicコンソール（console.anthropic.com）でAPIキーを発行し、入力してください。キーはこの端末のみに保存されます。</p>
+      <p id="apiKeyDesc">おすすめ情報の取得にClaude APIを使用します。Anthropicコンソール（console.anthropic.com）でAPIキーを発行し、入力してください。キーはこの端末のみに保存されます。</p>
       <input class="api-input" id="apiKeyInput" type="password" placeholder="sk-ant-..." autocomplete="off">
       <button class="save-btn" id="saveApiKey">保存する</button>
       <div class="api-status" id="apiStatus"></div>
@@ -307,12 +307,15 @@
   const VISITED_KEY = 'travel-visited-v2';
   const APIKEY_KEY  = 'travel-apikey-v1';
 
+  // ▼ サイト管理者がここにAPIキーを設定すると、他の人もAPIキーなしで使えます
+  const SHARED_API_KEY = '';
+
   let visited = JSON.parse(localStorage.getItem(VISITED_KEY) || '{}');
   let spotData = {};
   let catData  = {}; // { catKey: { pref, cat, items } }
   let catShown = {}; // { catKey: number }
   function saveVisited() { localStorage.setItem(VISITED_KEY, JSON.stringify(visited)); }
-  function getApiKey()   { return localStorage.getItem(APIKEY_KEY) || ''; }
+  function getApiKey()   { return localStorage.getItem(APIKEY_KEY) || SHARED_API_KEY || ''; }
 
   const CATEGORIES = [
     { key:'ryokan',   label:'旅館・宿泊',    icon:'🏯', color:'#8b5cf6', light:'#ede9fe' },
@@ -331,12 +334,18 @@
     });
   });
 
-  document.getElementById('apiKeyInput').value = getApiKey();
+  // SHARED_API_KEY が設定済みの場合はAPIキー欄を任意入力に変更
+  if (SHARED_API_KEY) {
+    document.getElementById('apiKeyDesc').textContent =
+      'このアプリはそのままご利用いただけます。独自のAPIキーをお持ちの場合は入力すると優先されます。';
+    document.getElementById('apiKeyInput').placeholder = '（任意）sk-ant-...';
+  }
+  document.getElementById('apiKeyInput').value = localStorage.getItem(APIKEY_KEY) || '';
   document.getElementById('saveApiKey').addEventListener('click', () => {
     const key = document.getElementById('apiKeyInput').value.trim();
     localStorage.setItem(APIKEY_KEY, key);
     const st = document.getElementById('apiStatus');
-    st.textContent = key ? '✓ 保存しました' : 'APIキーが空です';
+    st.textContent = key ? '✓ 保存しました' : 'APIキーをクリアしました';
     st.className = 'api-status ' + (key ? 'ok' : 'err');
     updateBanner();
   });
@@ -382,28 +391,18 @@
   });
 
   async function fetchRecommendations(pref, apiKey) {
-    const prompt = `${pref}への旅行おすすめ情報をJSON形式で返してください。
-各カテゴリ10件ずつ。それぞれに以下のフィールドを含めてください：
-- name: 施設・スポット名
-- appeal: 「ここだけの魅力」を20文字以内で（行きたくなるような一言）
-- desc: 詳細説明を60文字以内で
-- highlight: 見どころ・体験できることを80文字以内で（具体的に）
-- tips: 旅のコツ・注意点を60文字以内で
-- access: アクセス方法を50文字以内で（最寄り駅・バス停など）
-- season: 最もおすすめの季節（例：「春・秋」「通年」「夏」）
-- price: 予算感（「¥」「¥¥」「¥¥¥」のいずれか）
-- location: 住所・エリア（例：「東山区清水2丁目」「函館市元町」）
-- hours: 営業時間（例：「9:00〜17:00」「24時間」「要予約」）
+    const prompt = `${pref}の旅行おすすめをJSON形式で。各カテゴリ5件。フィールド：
+name(施設名), appeal(魅力15字), desc(説明40字), highlight(見どころ50字), tips(コツ30字), access(アクセス30字), season(季節), price(¥/¥¥/¥¥¥), location(エリア15字), hours(営業時間)
 
 {"ryokan":[{"name":"","appeal":"","desc":"","highlight":"","tips":"","access":"","season":"","price":"¥¥","location":"","hours":""}],"food":[{"name":"","appeal":"","desc":"","highlight":"","tips":"","access":"","season":"","price":"¥","location":"","hours":""}],"ent":[{"name":"","appeal":"","desc":"","highlight":"","tips":"","access":"","season":"","price":"¥","location":"","hours":""}],"activity":[{"name":"","appeal":"","desc":"","highlight":"","tips":"","access":"","season":"","price":"¥¥","location":"","hours":""}]}
 
-JSONのみ返してください。`;
+JSONのみ。`;
 
     const { default: Anthropic } = await import('https://esm.sh/@anthropic-ai/sdk');
     const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true });
     const message = await client.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 8192,
+      max_tokens: 4096,
       messages: [{ role: 'user', content: prompt }]
     });
 
