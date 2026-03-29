@@ -403,14 +403,20 @@ JSONのみ返してください。`;
     const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true });
     const message = await client.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 4096,
+      max_tokens: 8192,
       messages: [{ role: 'user', content: prompt }]
     });
 
     const text = message.content[0].text.trim();
     const match = text.match(/\{[\s\S]*\}/);
     if (!match) throw new Error('レスポンスの解析に失敗しました');
-    return JSON.parse(match[0]);
+    let json;
+    try {
+      json = JSON.parse(match[0]);
+    } catch(e) {
+      json = JSON.parse(repairJson(match[0]));
+    }
+    return json;
   }
 
   function renderResults(pref, data) {
@@ -702,6 +708,24 @@ JSONのみ返してください。`;
     visited[pref] = visited[pref].filter(v => v.id !== id);
     if (!visited[pref].length) delete visited[pref];
     saveVisited(); renderVisited();
+  }
+
+  function repairJson(text) {
+    // 途中で切れたJSONを閉じて修復する
+    let inString = false, escape = false;
+    const stack = [];
+    for (const c of text) {
+      if (escape)         { escape = false; continue; }
+      if (c === '\\' && inString) { escape = true; continue; }
+      if (c === '"')      { inString = !inString; continue; }
+      if (inString)       continue;
+      if (c === '{')      stack.push('}');
+      else if (c === '[') stack.push(']');
+      else if (c === '}' || c === ']') stack.pop();
+    }
+    let result = text.trimEnd().replace(/,\s*$/, '');
+    while (stack.length) result += stack.pop();
+    return result;
   }
 
   function esc(s) {
