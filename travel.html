@@ -207,6 +207,31 @@
     .rec-card:active { opacity: 0.9; }
     .rec-featured { cursor: pointer; }
     .rec-featured:active { opacity: 0.95; }
+
+    .more-btn {
+      width: 100%; padding: 13px; margin: 4px 0 16px;
+      background: white; border: 1.5px dashed var(--border); border-radius: 12px;
+      font-size: 0.82rem; font-weight: 700; color: var(--subtext);
+      cursor: pointer; transition: all 0.15s;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+    }
+    .more-btn:active { background: var(--bg); border-color: var(--primary); color: var(--primary); }
+    .more-btn-count { font-size: 0.72rem; opacity: 0.7; }
+
+    .modal-highlight-box {
+      border-radius: 10px; padding: 12px 14px; margin: 10px 0 2px;
+      border-left: 3px solid var(--accent); background: #fffbf5;
+    }
+    .modal-highlight-label { font-size: 0.7rem; font-weight: 800; color: var(--accent); letter-spacing: 0.04em; margin-bottom: 4px; }
+    .modal-highlight-text { font-size: 0.87rem; color: var(--text); line-height: 1.55; }
+    .modal-map-link {
+      display: flex; align-items: center; justify-content: center; gap: 7px;
+      width: 100%; padding: 12px; margin-top: 8px; border-radius: 10px;
+      border: 1.5px solid var(--border); background: white;
+      font-size: 0.85rem; font-weight: 600; color: var(--primary);
+      cursor: pointer; text-decoration: none; transition: background 0.15s;
+    }
+    .modal-map-link:active { background: var(--bg); }
   </style>
 </head>
 <body>
@@ -284,6 +309,8 @@
 
   let visited = JSON.parse(localStorage.getItem(VISITED_KEY) || '{}');
   let spotData = {};
+  let catData  = {}; // { catKey: { pref, cat, items } }
+  let catShown = {}; // { catKey: number }
   function saveVisited() { localStorage.setItem(VISITED_KEY, JSON.stringify(visited)); }
   function getApiKey()   { return localStorage.getItem(APIKEY_KEY) || ''; }
 
@@ -356,16 +383,19 @@
 
   async function fetchRecommendations(pref, apiKey) {
     const prompt = `${pref}への旅行おすすめ情報をJSON形式で返してください。
-各カテゴリ3件ずつ。それぞれに以下のフィールドを含めてください：
+各カテゴリ10件ずつ。それぞれに以下のフィールドを含めてください：
 - name: 施設・スポット名
 - appeal: 「ここだけの魅力」を20文字以内で（行きたくなるような一言）
 - desc: 詳細説明を60文字以内で
+- highlight: 見どころ・体験できることを80文字以内で（具体的に）
+- tips: 旅のコツ・注意点を60文字以内で
+- access: アクセス方法を50文字以内で（最寄り駅・バス停など）
 - season: 最もおすすめの季節（例：「春・秋」「通年」「夏」）
 - price: 予算感（「¥」「¥¥」「¥¥¥」のいずれか）
 - location: 住所・エリア（例：「東山区清水2丁目」「函館市元町」）
 - hours: 営業時間（例：「9:00〜17:00」「24時間」「要予約」）
 
-{"ryokan":[{"name":"","appeal":"","desc":"","season":"","price":"¥¥","location":"","hours":""}],"food":[{"name":"","appeal":"","desc":"","season":"","price":"¥","location":"","hours":""}],"ent":[{"name":"","appeal":"","desc":"","season":"","price":"¥","location":"","hours":""}],"activity":[{"name":"","appeal":"","desc":"","season":"","price":"¥¥","location":"","hours":""}]}
+{"ryokan":[{"name":"","appeal":"","desc":"","highlight":"","tips":"","access":"","season":"","price":"¥¥","location":"","hours":""}],"food":[{"name":"","appeal":"","desc":"","highlight":"","tips":"","access":"","season":"","price":"¥","location":"","hours":""}],"ent":[{"name":"","appeal":"","desc":"","highlight":"","tips":"","access":"","season":"","price":"¥","location":"","hours":""}],"activity":[{"name":"","appeal":"","desc":"","highlight":"","tips":"","access":"","season":"","price":"¥¥","location":"","hours":""}]}
 
 JSONのみ返してください。`;
 
@@ -373,7 +403,7 @@ JSONのみ返してください。`;
     const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true });
     const message = await client.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 2048,
+      max_tokens: 4096,
       messages: [{ role: 'user', content: prompt }]
     });
 
@@ -385,6 +415,14 @@ JSONのみ返してください。`;
 
   function renderResults(pref, data) {
     spotData = {};
+    catData  = {};
+    catShown = {};
+
+    CATEGORIES.forEach(cat => {
+      const items = data[cat.key] || [];
+      catData[cat.key]  = { pref, cat, items };
+      catShown[cat.key] = 3;
+    });
 
     const chips = CATEGORIES.map(cat => `
       <button class="cat-chip" style="background:${cat.light};color:${cat.color}"
@@ -392,80 +430,106 @@ JSONのみ返してください。`;
         ${cat.icon} ${cat.label}
       </button>`).join('');
 
-    const sections = CATEGORIES.map(cat => {
-      const items = data[cat.key] || [];
-      if (!items.length) return '';
-      const [first, ...rest] = items;
-      const firstId = makeId(pref, cat.key, first.name);
-      const firstIsV = isVisitedItem(pref, firstId);
-      const firstCid = safeId(firstId);
-
-      spotData[firstCid] = { pref, id: firstId, name: first.name, appeal: first.appeal||'', desc: first.desc||'', season: first.season||'', price: first.price||'', location: first.location||'', hours: first.hours||'', cat, isV: firstIsV };
-
-      const featured = `
-        <div class="rec-featured" id="${firstCid}" onclick="openSpotDetail('${firstCid}')">
-          <div class="featured-top" style="background:linear-gradient(135deg,${cat.color},${cat.color}cc)">
-            <div class="featured-badge">✦ イチオシ</div>
-            <div class="featured-name">${esc(first.name)}</div>
-            <div class="featured-appeal">「${esc(first.appeal || '')}」</div>
-          </div>
-          <div class="featured-bottom">
-            <div class="featured-desc">
-              ${esc(first.desc || '')}
-              <div class="rec-tags" style="margin-top:6px">
-                ${first.season ? `<span class="tag">📅 ${esc(first.season)}</span>` : ''}
-                ${first.price  ? `<span class="tag">${esc(first.price)}</span>` : ''}
-              </div>
-            </div>
-            <button class="visit-btn-featured ${firstIsV ? 'visited' : ''}"
-              onclick="event.stopPropagation();toggleVisit(${JH(pref)},${JH(firstId)},${JH(first.name)},${JH(first.desc||'')},${JH(cat.label)},'${firstCid}',this)">
-              ${firstIsV ? '✓ 行った' : '行きたい！'}
-            </button>
-          </div>
-        </div>`;
-
-      const cards = rest.map(item => {
-        const id = makeId(pref, cat.key, item.name);
-        const isV = isVisitedItem(pref, id);
-        const cid = safeId(id);
-        spotData[cid] = { pref, id, name: item.name, appeal: item.appeal||'', desc: item.desc||'', season: item.season||'', price: item.price||'', location: item.location||'', hours: item.hours||'', cat, isV };
-        return `
-          <div class="rec-card ${isV ? 'visited' : ''}" id="${cid}" onclick="openSpotDetail('${cid}')">
-            <div class="rec-accent" style="background:${cat.color}"></div>
-            <div class="rec-body">
-              <div class="rec-name">${esc(item.name)}</div>
-              ${item.appeal ? `<div class="rec-appeal">「${esc(item.appeal)}」</div>` : ''}
-              <div class="rec-desc">${esc(item.desc || '')}</div>
-              <div class="rec-tags">
-                ${item.season ? `<span class="tag">📅 ${esc(item.season)}</span>` : ''}
-                ${item.price  ? `<span class="tag">${esc(item.price)}</span>` : ''}
-              </div>
-            </div>
-            <div class="rec-side">
-              <button class="visit-btn ${isV ? 'visited' : ''}"
-                onclick="event.stopPropagation();toggleVisit(${JH(pref)},${JH(id)},${JH(item.name)},${JH(item.desc||'')},${JH(cat.label)},'${cid}',this)">
-                ${isV ? '✓ 行った' : '行った'}
-              </button>
-            </div>
-          </div>`;
-      }).join('');
-
-      return `
-        <div class="cat-section" id="cat-${cat.key}">
-          <div class="cat-header">
-            <div class="cat-dot" style="background:${cat.color}"></div>
-            <div class="cat-label">${cat.icon} ${cat.label}</div>
-          </div>
-          ${featured}${cards}
-        </div>`;
-    }).join('');
+    const sectionsHtml = CATEGORIES.map(cat =>
+      catData[cat.key].items.length
+        ? `<div class="cat-section" id="cat-${cat.key}"></div>`
+        : ''
+    ).join('');
 
     document.getElementById('resultArea').innerHTML = `
       <div class="cat-nav">${chips}</div>
       <div class="result-area">
         <div class="pref-title">📍 ${esc(pref)}</div>
-        ${sections}
+        ${sectionsHtml}
       </div>`;
+
+    CATEGORIES.forEach(cat => {
+      if (catData[cat.key].items.length) renderCatSection(cat.key);
+    });
+  }
+
+  function renderCatSection(catKey) {
+    const { pref, cat, items } = catData[catKey];
+    const count = catShown[catKey];
+    const visible = items.slice(0, count);
+    const remaining = items.length - count;
+
+    const [first, ...rest] = visible;
+    const firstId  = makeId(pref, cat.key, first.name);
+    const firstIsV = isVisitedItem(pref, firstId);
+    const firstCid = safeId(firstId);
+
+    spotData[firstCid] = { pref, id: firstId, name: first.name, appeal: first.appeal||'', desc: first.desc||'', highlight: first.highlight||'', tips: first.tips||'', access: first.access||'', season: first.season||'', price: first.price||'', location: first.location||'', hours: first.hours||'', cat, isV: firstIsV };
+
+    const featured = `
+      <div class="rec-featured" id="${firstCid}" onclick="openSpotDetail('${firstCid}')">
+        <div class="featured-top" style="background:linear-gradient(135deg,${cat.color},${cat.color}cc)">
+          <div class="featured-badge">✦ イチオシ</div>
+          <div class="featured-name">${esc(first.name)}</div>
+          <div class="featured-appeal">「${esc(first.appeal || '')}」</div>
+        </div>
+        <div class="featured-bottom">
+          <div class="featured-desc">
+            ${esc(first.desc || '')}
+            <div class="rec-tags" style="margin-top:6px">
+              ${first.season ? `<span class="tag">📅 ${esc(first.season)}</span>` : ''}
+              ${first.price  ? `<span class="tag">${esc(first.price)}</span>` : ''}
+            </div>
+          </div>
+          <button class="visit-btn-featured ${firstIsV ? 'visited' : ''}"
+            onclick="event.stopPropagation();toggleVisit(${JH(pref)},${JH(firstId)},${JH(first.name)},${JH(first.desc||'')},${JH(cat.label)},'${firstCid}',this)">
+            ${firstIsV ? '✓ 行った' : '行きたい！'}
+          </button>
+        </div>
+      </div>`;
+
+    const cards = rest.map(item => {
+      const id  = makeId(pref, cat.key, item.name);
+      const isV = isVisitedItem(pref, id);
+      const cid = safeId(id);
+      spotData[cid] = { pref, id, name: item.name, appeal: item.appeal||'', desc: item.desc||'', highlight: item.highlight||'', tips: item.tips||'', access: item.access||'', season: item.season||'', price: item.price||'', location: item.location||'', hours: item.hours||'', cat, isV };
+      return `
+        <div class="rec-card ${isV ? 'visited' : ''}" id="${cid}" onclick="openSpotDetail('${cid}')">
+          <div class="rec-accent" style="background:${cat.color}"></div>
+          <div class="rec-body">
+            <div class="rec-name">${esc(item.name)}</div>
+            ${item.appeal ? `<div class="rec-appeal">「${esc(item.appeal)}」</div>` : ''}
+            <div class="rec-desc">${esc(item.desc || '')}</div>
+            <div class="rec-tags">
+              ${item.season ? `<span class="tag">📅 ${esc(item.season)}</span>` : ''}
+              ${item.price  ? `<span class="tag">${esc(item.price)}</span>` : ''}
+            </div>
+          </div>
+          <div class="rec-side">
+            <button class="visit-btn ${isV ? 'visited' : ''}"
+              onclick="event.stopPropagation();toggleVisit(${JH(pref)},${JH(id)},${JH(item.name)},${JH(item.desc||'')},${JH(cat.label)},'${cid}',this)">
+              ${isV ? '✓ 行った' : '行った'}
+            </button>
+          </div>
+        </div>`;
+    }).join('');
+
+    const moreBtn = remaining > 0 ? `
+      <button class="more-btn" onclick="showMoreItems('${catKey}')">
+        次の候補を見る
+        <span class="more-btn-count">（残り ${Math.min(remaining, 3)} 件 / 全 ${items.length} 件）</span>
+      </button>` : '';
+
+    document.getElementById('cat-' + catKey).innerHTML = `
+      <div class="cat-header">
+        <div class="cat-dot" style="background:${cat.color}"></div>
+        <div class="cat-label">${cat.icon} ${cat.label}</div>
+      </div>
+      ${featured}${cards}${moreBtn}`;
+  }
+
+  function showMoreItems(catKey) {
+    catShown[catKey] = Math.min(catShown[catKey] + 3, 10);
+    renderCatSection(catKey);
+    // 新しく追加されたカードにスクロール
+    const section = document.getElementById('cat-' + catKey);
+    const cards = section.querySelectorAll('.rec-card');
+    if (cards.length) cards[cards.length - 1].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
   function makeId(pref, cat, name) { return `${pref}__${cat}__${name}`; }
@@ -499,9 +563,10 @@ JSONのみ返してください。`;
   function openSpotDetail(sid) {
     const spot = spotData[sid];
     if (!spot) return;
-    const { pref, id, name, appeal, desc, season, price, location, hours, cat } = spot;
+    const { pref, id, name, appeal, desc, highlight, tips, access, season, price, location, hours, cat } = spot;
     const isV = isVisitedItem(pref, id);
     spot.isV = isV;
+    const mapQuery = encodeURIComponent((location ? location + ' ' : '') + name);
 
     document.getElementById('modalSheet').innerHTML = `
       <div class="modal-header" style="background:linear-gradient(135deg,${cat.color},${cat.color}b0)">
@@ -512,18 +577,29 @@ JSONのみ返してください。`;
         ${appeal ? `<div class="modal-appeal">「${esc(appeal)}」</div>` : ''}
       </div>
       <div class="modal-body">
-        ${location ? `<div class="modal-info-row">
-          <div class="modal-info-icon">☀️</div>
-          <div class="modal-info-content">
-            <div class="modal-info-label">場所情報</div>
-            <div class="modal-info-text">${esc(location)}</div>
-          </div>
+        ${highlight ? `<div class="modal-highlight-box">
+          <div class="modal-highlight-label">✨ 見どころ</div>
+          <div class="modal-highlight-text">${esc(highlight)}</div>
         </div>` : ''}
         ${desc ? `<div class="modal-info-row">
           <div class="modal-info-icon">📝</div>
           <div class="modal-info-content">
             <div class="modal-info-label">詳細</div>
             <div class="modal-info-text">${esc(desc)}</div>
+          </div>
+        </div>` : ''}
+        ${location ? `<div class="modal-info-row">
+          <div class="modal-info-icon">📍</div>
+          <div class="modal-info-content">
+            <div class="modal-info-label">場所</div>
+            <div class="modal-info-text">${esc(location)}</div>
+          </div>
+        </div>` : ''}
+        ${access ? `<div class="modal-info-row">
+          <div class="modal-info-icon">🚃</div>
+          <div class="modal-info-content">
+            <div class="modal-info-label">アクセス</div>
+            <div class="modal-info-text">${esc(access)}</div>
           </div>
         </div>` : ''}
         ${hours ? `<div class="modal-info-row">
@@ -533,10 +609,20 @@ JSONのみ返してください。`;
             <div class="modal-info-text">${esc(hours)}</div>
           </div>
         </div>` : ''}
+        ${tips ? `<div class="modal-info-row">
+          <div class="modal-info-icon">💡</div>
+          <div class="modal-info-content">
+            <div class="modal-info-label">旅のコツ</div>
+            <div class="modal-info-text">${esc(tips)}</div>
+          </div>
+        </div>` : ''}
         <div class="modal-tags-row">
           ${season ? `<span class="modal-tag">📅 ${esc(season)}</span>` : ''}
           ${price  ? `<span class="modal-tag">${esc(price)}</span>` : ''}
         </div>
+        <a class="modal-map-link" href="https://www.google.com/maps/search/?api=1&query=${mapQuery}" target="_blank" rel="noopener">
+          🗺️ Google マップで見る
+        </a>
         <button class="modal-visit-btn ${isV ? 'visited' : ''}" id="modalVisitBtn"
           onclick="toggleVisitFromModal('${sid}')">
           ${isV ? '✓ 行った' : '行った'}
