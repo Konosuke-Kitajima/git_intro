@@ -403,14 +403,39 @@ JSONのみ返してください。`;
     const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true });
     const message = await client.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 4096,
+      max_tokens: 8192,
       messages: [{ role: 'user', content: prompt }]
     });
 
     const text = message.content[0].text.trim();
-    const match = text.match(/\{[\s\S]*\}/);
-    if (!match) throw new Error('レスポンスの解析に失敗しました');
-    return JSON.parse(match[0]);
+    const start = text.indexOf('{');
+    if (start === -1) throw new Error('レスポンスの解析に失敗しました');
+    const raw = text.slice(start);
+    try {
+      return JSON.parse(raw);
+    } catch(e) {
+      return JSON.parse(repairJson(raw));
+    }
+  }
+
+  function repairJson(text) {
+    let inString = false, escape = false;
+    const stack = [];
+    for (const c of text) {
+      if (escape)              { escape = false; continue; }
+      if (c === '\\' && inString) { escape = true;  continue; }
+      if (c === '"')           { inString = !inString; continue; }
+      if (inString)            continue;
+      if      (c === '{')      stack.push('}');
+      else if (c === '[')      stack.push(']');
+      else if (c === '}' || c === ']') stack.pop();
+    }
+    let result = text.trimEnd();
+    if (inString) result += '"';             // 文字列が途中で切れた場合
+    result = result.replace(/,\s*$/, '');    // 末尾の余分なカンマを除去
+    result = result.replace(/,?\s*"[^"]*"\s*:\s*$/, ''); // 不完全なキーを除去
+    while (stack.length) result += stack.pop();
+    return result;
   }
 
   function renderResults(pref, data) {
